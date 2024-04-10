@@ -11,7 +11,12 @@
     "build:win": "napi build --platform --target x86_64-pc-windows-msvc build/"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.0",
-    "@antfu/ni": "0.21.12"
+    "@napi-rs/cli": "^2.18.0"
+  },
+  "dependencies": {
+    "@vue/compiler-core": "^3.4.21",
+    "@vue/reactivity": "^3.4.21",
+    "@vue/runtime-core": "^3.4.21",
+    "consola": "^3.2.3"
   }
 }

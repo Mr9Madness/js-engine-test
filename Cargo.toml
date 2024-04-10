@@ -9,9 +9,10 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-gpui = { git = "https://github.com/zed-industries/zed" }
+crossterm = "0.27.0"
 napi = "2.16.1"
 napi-derive = "2.16.1"
+ratatui = "0.26.1"
 
 [build-dependencies]
 napi-build = "2.1.2"

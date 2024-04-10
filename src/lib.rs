@@ -1,75 +1,233 @@
-use std::time::Duration;
 use napi_derive::napi;
-use gpui::*;
+use std::io;
 
-struct Assets {}
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+    prelude::*,
+    widgets::{Block, Borders, List, ListItem, Paragraph},
+};
 
-impl AssetSource for Assets {
-    fn load(&self, path: &str) -> Result<std::borrow::Cow<'static, [u8]>> {
-        std::fs::read(path).map(Into::into).map_err(Into::into)
-    }
-
-    fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        Ok(std::fs::read_dir(path)?
-            .filter_map(|entry| {
-                Some(SharedString::from(
-                    entry.ok()?.path().to_string_lossy().to_string(),
-                ))
-            })
-            .collect::<Vec<_>>())
-    }
+enum InputMode {
+    Normal,
+    Editing,
 }
 
-struct AnimationExample {}
+/// App holds the state of the application
+struct App {
+    /// Current value of the input box
+    input: String,
+    /// Position of cursor in the editor area.
+    cursor_position: usize,
+    /// Current input mode
+    input_mode: InputMode,
+    /// History of recorded messages
+    messages: Vec<String>,
+}
 
-impl Render for AnimationExample {
-    fn render(&mut self, _cx: &mut ViewContext<Self>) -> impl IntoElement {
-        div().flex().flex_col().size_full().justify_around().child(
-            div().flex().flex_row().w_full().justify_around().child(
-                div()
-                    .flex()
-                    .bg(rgb(0x2e7d32))
-                    .size(Length::Definite(Pixels(300.0).into()))
-                    .justify_center()
-                    .items_center()
-                    .shadow_lg()
-                    .text_xl()
-                    .text_color(black())
-                    .child("hello")
-                    .child(
-                        svg()
-                            .size_8()
-                            .path("examples/image/arrow_circle.svg")
-                            .text_color(black())
-                            .with_animation(
-                                "image_circle",
-                                Animation::new(Duration::from_secs(2))
-                                    .repeat()
-                                    .with_easing(bounce(ease_in_out)),
-                                |svg, delta| {
-                                    svg.with_transformation(Transformation::rotate(percentage(
-                                        delta,
-                                    )))
-                                },
-                            ),
-                    ),
-            ),
-        )
+impl App {
+    const fn new() -> Self {
+        Self {
+            input: String::new(),
+            input_mode: InputMode::Normal,
+            messages: Vec::new(),
+            cursor_position: 0,
+        }
+    }
+
+    fn move_cursor_left(&mut self) {
+        let cursor_moved_left = self.cursor_position.saturating_sub(1);
+        self.cursor_position = self.clamp_cursor(cursor_moved_left);
+    }
+
+    fn move_cursor_right(&mut self) {
+        let cursor_moved_right = self.cursor_position.saturating_add(1);
+        self.cursor_position = self.clamp_cursor(cursor_moved_right);
+    }
+
+    fn enter_char(&mut self, new_char: char) {
+        self.input.insert(self.cursor_position, new_char);
+
+        self.move_cursor_right();
+    }
+
+    fn delete_char(&mut self) {
+        let is_not_cursor_leftmost = self.cursor_position != 0;
+        if is_not_cursor_leftmost {
+            // Method "remove" is not used on the saved text for deleting the selected char.
+            // Reason: Using remove on String works on bytes instead of the chars.
+            // Using remove would require special care because of char boundaries.
+
+            let current_index = self.cursor_position;
+            let from_left_to_current_index = current_index - 1;
+
+            // Getting all characters before the selected character.
+            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
+            // Getting all characters after selected character.
+            let after_char_to_delete = self.input.chars().skip(current_index);
+
+            // Put all characters together except the selected one.
+            // By leaving the selected one out, it is forgotten and therefore deleted.
+            self.input = before_char_to_delete.chain(after_char_to_delete).collect();
+            self.move_cursor_left();
+        }
+    }
+
+    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
+        new_cursor_pos.clamp(0, self.input.len())
+    }
+
+    fn reset_cursor(&mut self) {
+        self.cursor_position = 0;
+    }
+
+    fn submit_message(&mut self) {
+        self.messages.push(self.input.clone());
+        self.input.clear();
+        self.reset_cursor();
     }
 }
 
 #[napi]
 pub fn start() {
-    App::new()
-        .with_assets(Assets {})
-        .run(|cx: &mut AppContext| {
-            let options = WindowOptions {
-                bounds: Some(Bounds::centered(None, size(px(300.), px(300.)), cx)),
-                ..Default::default()
-            };
-            cx.open_window(options, |cx| {
-                cx.activate(false);
-                cx.new_view(|_cx| AnimationExample {})
-            });
-        });
+    // setup terminal
+    let _ = enable_raw_mode();
+    let mut stdout = io::stdout();
+    let _ = execute!(stdout, EnterAlternateScreen, EnableMouseCapture);
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    // create app and run it
+    let app = App::new();
+    let res = run_app(&mut terminal, app);
+
+    // restore terminal
+    let _ = disable_raw_mode();
+    let _ = execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    );
+    terminal.show_cursor().unwrap();
+
+    if let Err(err) = res {
+        println!("{err:?}");
+    }
+}
+
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+    loop {
+        terminal.draw(|f| ui(f, &app))?;
+
+        if let Event::Key(key) = event::read()? {
+            match app.input_mode {
+                InputMode::Normal => match key.code {
+                    KeyCode::Char('e') => {
+                        app.input_mode = InputMode::Editing;
+                    }
+                    KeyCode::Char('q') => {
+                        return Ok(());
+                    }
+                    _ => {}
+                },
+                InputMode::Editing if key.kind == KeyEventKind::Press => match key.code {
+                    KeyCode::Enter => app.submit_message(),
+                    KeyCode::Char(to_insert) => {
+                        app.enter_char(to_insert);
+                    }
+                    KeyCode::Backspace => {
+                        app.delete_char();
+                    }
+                    KeyCode::Left => {
+                        app.move_cursor_left();
+                    }
+                    KeyCode::Right => {
+                        app.move_cursor_right();
+                    }
+                    KeyCode::Esc => {
+                        app.input_mode = InputMode::Normal;
+                    }
+                    _ => {}
+                },
+                InputMode::Editing => {}
+            }
+        }
+    }
+}
+
+fn ui(f: &mut Frame, app: &App) {
+    let vertical = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(3),
+        Constraint::Min(1),
+    ]);
+    let [help_area, input_area, messages_area] = vertical.areas(f.size());
+
+    let (msg, style) = match app.input_mode {
+        InputMode::Normal => (
+            vec![
+                "Press ".into(),
+                "q".bold(),
+                " to exit, ".into(),
+                "e".bold(),
+                " to start editing.".bold(),
+            ],
+            Style::default().add_modifier(Modifier::RAPID_BLINK),
+        ),
+        InputMode::Editing => (
+            vec![
+                "Press ".into(),
+                "Esc".bold(),
+                " to stop editing, ".into(),
+                "Enter".bold(),
+                " to record the message".into(),
+            ],
+            Style::default(),
+        ),
+    };
+    let text = Text::from(Line::from(msg)).patch_style(style);
+    let help_message = Paragraph::new(text);
+    f.render_widget(help_message, help_area);
+
+    let input = Paragraph::new(app.input.as_str())
+        .style(match app.input_mode {
+            InputMode::Normal => Style::default(),
+            InputMode::Editing => Style::default().fg(Color::Yellow),
+        })
+        .block(Block::default().borders(Borders::ALL).title("Input"));
+    f.render_widget(input, input_area);
+    match app.input_mode {
+        InputMode::Normal =>
+            // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
+            {}
+
+        InputMode::Editing => {
+            // Make the cursor visible and ask ratatui to put it at the specified coordinates after
+            // rendering
+            #[allow(clippy::cast_possible_truncation)]
+            f.set_cursor(
+                // Draw the cursor at the current position in the input field.
+                // This position is can be controlled via the left and right arrow key
+                input_area.x + app.cursor_position as u16 + 1,
+                // Move one line down, from the border to the input line
+                input_area.y + 1,
+            );
+        }
+    }
+
+    let messages: Vec<ListItem> = app
+        .messages
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let content = Line::from(Span::raw(format!("{i}: {m}")));
+            ListItem::new(content)
+        })
+        .collect();
+    let messages =
+        List::new(messages).block(Block::default().borders(Borders::ALL).title("Messages"));
+    f.render_widget(messages, messages_area);
 }
