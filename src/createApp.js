@@ -1,6 +1,5 @@
 import { createRenderer, markRaw } from '@vue/runtime-core'
 import { root } from './rootComponent'
-import { createLog } from "./createLog";
 
 class CustomNode {
     constructor(parent = null) {
@@ -65,16 +64,12 @@ const { render, createApp: baseCreateApp } = createRenderer({
 })
 
 export function createApp(rootElement) {
-    const log = createLog()
-
     const app = baseCreateApp(root, {
         root: markRaw(rootElement),
     })
 
     const { mount, unmount } = app
     app.mount = ({ renderOnce = false, exitOnCtrlC = true } = {}) => {
-        log.clear()
-
         const rootEl = new CustomElement({ type: 'tui:root' })
         mount(rootEl)
         return app

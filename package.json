@@ -2,11 +2,12 @@
   "name": "napi-test",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "packageManager": "pnpm@8.15.0",
   "scripts": {
     "start": "node main.js",
     "start:win": "node.exe main.js",
-    "build": "nr build:linux && nr build:win",
+    "build:native": "nr build:linux && nr build:win",
     "build:linux": "napi build --platform --target x86_64-unknown-linux-gnu build/",
     "build:win": "napi build --platform --target x86_64-pc-windows-msvc build/"
   },
@@ -14,8 +15,8 @@
     "@napi-rs/cli": "^2.18.0"
   },
   "dependencies": {
-    "@vue/compiler-core": "^3.4.21",
     "@vue/reactivity": "^3.4.21",
+    "@vue/compiler-sfc": "^3.4.21",
     "@vue/runtime-core": "^3.4.21",
     "consola": "^3.2.3"
   }
