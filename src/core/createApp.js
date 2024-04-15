@@ -69,11 +69,13 @@ const { render, createApp: baseCreateApp } = createRenderer({
     },
     setElementText(node, text) {
         console.log('setElementText', node.children, text)
-        const textNode = node.childNodes.find((node) => node.nodeName === '#text')
-        if (textNode) {
-            textNode.nodeValue = text
-        } else {
-            node.insertNode(new CustomNode(null, text))
+        if (node.childNodes) {
+            const textNode = node.childNodes.find((node) => node.nodeName === '#text')
+            if (textNode) {
+                textNode.nodeValue = text
+            } else {
+                node.insertNode(new CustomNode(null, text))
+            }
         }
     },
     parentNode(node) {
