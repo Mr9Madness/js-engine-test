@@ -2,8 +2,9 @@ import { createRenderer, markRaw } from '@vue/runtime-core'
 import { root } from './rootComponent'
 
 class CustomNode {
-    constructor(parent = null) {
+    constructor(parent = null, text = null) {
         this.parent = parent
+        this.text = text
     }
     parent
     text
@@ -25,31 +26,55 @@ class CustomElement {
 
 const { render, createApp: baseCreateApp } = createRenderer({
     createElement(type, namespace, isCustomizedBuiltIn, vnodeProps) {
-        console.log('createElement')
+        console.log('createElement', type)
         return new CustomElement({ type, namespace, isCustomizedBuiltIn, vnodeProps })
     },
     patchProp(el, key, prevValue, nextValue, namespace, prevChildren, parentComponent, parentSuspense, unmountChildren) {
-        console.log('patchProp')
+        console.log('patchProp', key)
+        // if (key === 'style') {
+        //     nextValue = nextValue || {}
+        //     // ensure any previously existing value is erased with undefined
+        //     for (const styleProperty in prevValue) {
+        //         if (!(styleProperty in nextValue)) {
+        //             nextValue[styleProperty] = undefined
+        //         }
+        //     }
+        //     el.style = nextValue
+        //     if (el.yogaNode) {
+        //         applyStyles(el.yogaNode, nextValue)
+        //     }
+        // } else if (key === 'internal_transform') {
+        //     el.internal_transform = nextValue
+        // }
     },
     insert(el, parent, anchor) {
-        console.log('insert')
+        console.log('insert', el.type)
     },
     remove(el) {
-        console.log('remove')
+        console.log('remove', node.nodeName)
     },
     createText(text) {
-        console.log('createText')
-        return new CustomNode()
+        console.log('createText', text)
+        return new CustomNode(null, text)
     },
     createComment(text) {
-        console.log('createComment')
-        return new CustomNode()
+        console.log('createComment', text)
+        return new CustomNode(null, text)
     },
     setText(node, text) {
-        console.log('setText')
+        console.log('setText', node.nodeName, text)
+        if (node.nodeName === '#text' || node.nodeName === '#comment') {
+            node.nodeValue = text
+        }
     },
     setElementText(node, text) {
-        console.log('setElementText')
+        console.log('setElementText', node.children, text)
+        const textNode = node.childNodes.find((node) => node.nodeName === '#text')
+        if (textNode) {
+            textNode.nodeValue = text
+        } else {
+            node.insertNode(new CustomNode(null, text))
+        }
     },
     parentNode(node) {
         console.log('parentNode')

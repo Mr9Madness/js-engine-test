@@ -1,6 +1,6 @@
 import { consola, createConsola } from "consola/basic";
-import { createApp } from "./src/createApp";
-import App from "./src/App.vue";
+import { createApp } from "./src/core/createApp";
+import App from "./src/app/App";
 
 consola.wrapConsole()
 
