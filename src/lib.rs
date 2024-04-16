@@ -27,6 +27,9 @@ struct App {
     /// History of recorded messages
     messages: Vec<String>,
 }
+struct Element {
+    
+}
 
 impl App {
     const fn new() -> Self {
