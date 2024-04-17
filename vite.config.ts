@@ -17,7 +17,7 @@ export default defineConfig({
         emptyOutDir: true,
         minify: false,
         lib: {
-            entry: resolve(__dirname, './src/main.js'),
+            entry: resolve(__dirname, './src/main.ts'),
             fileName: 'main',
             formats: ['es'],
         },

@@ -1,6 +1,7 @@
 import { createRenderer, markRaw } from '@vue/runtime-core'
 import { root } from './rootComponent'
 import { BaseNode, DOMElement, TextNode, DOMNode } from "./dom";
+import { App } from 'vue';
 
 const { render, createApp: baseCreateApp } = createRenderer<BaseNode, DOMElement>({
     patchProp(el, key, prevValue, nextValue, namespace, prevChildren, parentComponent, parentSuspense, unmountChildren) {
@@ -69,13 +70,17 @@ const { render, createApp: baseCreateApp } = createRenderer<BaseNode, DOMElement
     },
 })
 
+interface NewApp extends Omit<App<DOMElement>, 'mount'> {
+    mount: (options?: Partial<{ renderOnce: boolean, exitOnCtrlC: boolean }>) => NewApp
+}
+
 export function createApp(rootElement) {
     const app = baseCreateApp(root, {
         root: markRaw(rootElement),
     })
 
     const { mount, unmount } = app
-    const newApp = app as any
+    const newApp = app as unknown as NewApp
     newApp.mount = ({ renderOnce = false, exitOnCtrlC = true } = {}) => {
         const rootEl = new DOMElement('tui:root')
         mount(rootEl)

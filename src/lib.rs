@@ -1,236 +1,75 @@
 use napi_derive::napi;
-use std::io;
 
+use std::{
+    io::{self, Stdout},
+    time::Duration,
+};
+
+use anyhow::{Context, Result};
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{
-    prelude::*,
-    widgets::{Block, Borders, List, ListItem, Paragraph},
-};
+use ratatui::{prelude::*, widgets::Paragraph};
 
-enum InputMode {
-    Normal,
-    Editing,
-}
-
-/// App holds the state of the application
-struct App {
-    /// Current value of the input box
-    input: String,
-    /// Position of cursor in the editor area.
-    cursor_position: usize,
-    /// Current input mode
-    input_mode: InputMode,
-    /// History of recorded messages
-    messages: Vec<String>,
-}
-struct Element {
-    
-}
-
-impl App {
-    const fn new() -> Self {
-        Self {
-            input: String::new(),
-            input_mode: InputMode::Normal,
-            messages: Vec::new(),
-            cursor_position: 0,
-        }
-    }
-
-    fn move_cursor_left(&mut self) {
-        let cursor_moved_left = self.cursor_position.saturating_sub(1);
-        self.cursor_position = self.clamp_cursor(cursor_moved_left);
-    }
-
-    fn move_cursor_right(&mut self) {
-        let cursor_moved_right = self.cursor_position.saturating_add(1);
-        self.cursor_position = self.clamp_cursor(cursor_moved_right);
-    }
-
-    fn enter_char(&mut self, new_char: char) {
-        self.input.insert(self.cursor_position, new_char);
-
-        self.move_cursor_right();
-    }
-
-    fn delete_char(&mut self) {
-        let is_not_cursor_leftmost = self.cursor_position != 0;
-        if is_not_cursor_leftmost {
-            // Method "remove" is not used on the saved text for deleting the selected char.
-            // Reason: Using remove on String works on bytes instead of the chars.
-            // Using remove would require special care because of char boundaries.
-
-            let current_index = self.cursor_position;
-            let from_left_to_current_index = current_index - 1;
-
-            // Getting all characters before the selected character.
-            let before_char_to_delete = self.input.chars().take(from_left_to_current_index);
-            // Getting all characters after selected character.
-            let after_char_to_delete = self.input.chars().skip(current_index);
-
-            // Put all characters together except the selected one.
-            // By leaving the selected one out, it is forgotten and therefore deleted.
-            self.input = before_char_to_delete.chain(after_char_to_delete).collect();
-            self.move_cursor_left();
-        }
-    }
-
-    fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
-        new_cursor_pos.clamp(0, self.input.len())
-    }
-
-    fn reset_cursor(&mut self) {
-        self.cursor_position = 0;
-    }
-
-    fn submit_message(&mut self) {
-        self.messages.push(self.input.clone());
-        self.input.clear();
-        self.reset_cursor();
-    }
-}
 
 #[napi]
 pub fn start() {
-    // setup terminal
-    let _ = enable_raw_mode();
+    let mut terminal = setup_terminal().context("setup failed").unwrap();
+    run(&mut terminal).context("app loop failed").unwrap();
+    restore_terminal(&mut terminal).context("restore terminal failed").unwrap();
+}
+
+/// Setup the terminal. This is where you would enable raw mode, enter the alternate screen, and
+/// hide the cursor. This example does not handle errors. A more robust application would probably
+/// want to handle errors and ensure that the terminal is restored to a sane state before exiting.
+fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
     let mut stdout = io::stdout();
-    let _ = execute!(stdout, EnterAlternateScreen, EnableMouseCapture);
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend).unwrap();
-
-    // create app and run it
-    let app = App::new();
-    let res = run_app(&mut terminal, app);
-
-    // restore terminal
-    let _ = disable_raw_mode();
-    let _ = execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    );
-    terminal.show_cursor().unwrap();
-
-    if let Err(err) = res {
-        println!("{err:?}");
-    }
+    enable_raw_mode().context("failed to enable raw mode")?;
+    execute!(stdout, EnterAlternateScreen).context("unable to enter alternate screen")?;
+    Terminal::new(CrosstermBackend::new(stdout)).context("creating terminal failed")
 }
 
-fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<()> {
+/// Restore the terminal. This is where you disable raw mode, leave the alternate screen, and show
+/// the cursor.
+fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
+    disable_raw_mode().context("failed to disable raw mode")?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)
+        .context("unable to switch to main screen")?;
+    terminal.show_cursor().context("unable to show cursor")
+}
+
+/// Run the application loop. This is where you would handle events and update the application
+/// state. This example exits when the user presses 'q'. Other styles of application loops are
+/// possible, for example, you could have multiple application states and switch between them based
+/// on events, or you could have a single application state and update it based on events.
+fn run(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()> {
     loop {
-        terminal.draw(|f| ui(f, &app))?;
-
-        if let Event::Key(key) = event::read()? {
-            match app.input_mode {
-                InputMode::Normal => match key.code {
-                    KeyCode::Char('e') => {
-                        app.input_mode = InputMode::Editing;
-                    }
-                    KeyCode::Char('q') => {
-                        return Ok(());
-                    }
-                    _ => {}
-                },
-                InputMode::Editing if key.kind == KeyEventKind::Press => match key.code {
-                    KeyCode::Enter => app.submit_message(),
-                    KeyCode::Char(to_insert) => {
-                        app.enter_char(to_insert);
-                    }
-                    KeyCode::Backspace => {
-                        app.delete_char();
-                    }
-                    KeyCode::Left => {
-                        app.move_cursor_left();
-                    }
-                    KeyCode::Right => {
-                        app.move_cursor_right();
-                    }
-                    KeyCode::Esc => {
-                        app.input_mode = InputMode::Normal;
-                    }
-                    _ => {}
-                },
-                InputMode::Editing => {}
-            }
+        terminal.draw(crate::render_app)?;
+        if should_quit()? {
+            break;
         }
     }
+    Ok(())
 }
 
-fn ui(f: &mut Frame, app: &App) {
-    let vertical = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Length(3),
-        Constraint::Min(1),
-    ]);
-    let [help_area, input_area, messages_area] = vertical.areas(f.size());
+/// Render the application. This is where you would draw the application UI. This example just
+/// draws a greeting.
+fn render_app(frame: &mut Frame) {
+    let greeting = Paragraph::new("Hello World! (press 'q' to quit)");
+    frame.render_widget(greeting, frame.size());
+}
 
-    let (msg, style) = match app.input_mode {
-        InputMode::Normal => (
-            vec![
-                "Press ".into(),
-                "q".bold(),
-                " to exit, ".into(),
-                "e".bold(),
-                " to start editing.".bold(),
-            ],
-            Style::default().add_modifier(Modifier::RAPID_BLINK),
-        ),
-        InputMode::Editing => (
-            vec![
-                "Press ".into(),
-                "Esc".bold(),
-                " to stop editing, ".into(),
-                "Enter".bold(),
-                " to record the message".into(),
-            ],
-            Style::default(),
-        ),
-    };
-    let text = Text::from(Line::from(msg)).patch_style(style);
-    let help_message = Paragraph::new(text);
-    f.render_widget(help_message, help_area);
-
-    let input = Paragraph::new(app.input.as_str())
-        .style(match app.input_mode {
-            InputMode::Normal => Style::default(),
-            InputMode::Editing => Style::default().fg(Color::Yellow),
-        })
-        .block(Block::default().borders(Borders::ALL).title("Input"));
-    f.render_widget(input, input_area);
-    match app.input_mode {
-        InputMode::Normal =>
-            // Hide the cursor. `Frame` does this by default, so we don't need to do anything here
-            {}
-
-        InputMode::Editing => {
-            // Make the cursor visible and ask ratatui to put it at the specified coordinates after
-            // rendering
-            #[allow(clippy::cast_possible_truncation)]
-            f.set_cursor(
-                // Draw the cursor at the current position in the input field.
-                // This position is can be controlled via the left and right arrow key
-                input_area.x + app.cursor_position as u16 + 1,
-                // Move one line down, from the border to the input line
-                input_area.y + 1,
-            );
+/// Check if the user has pressed 'q'. This is where you would handle events. This example just
+/// checks if the user has pressed 'q' and returns true if they have. It does not handle any other
+/// events. There is a 250ms timeout on the event poll so that the application can exit in a timely
+/// manner, and to ensure that the terminal is rendered at least once every 250ms.
+fn should_quit() -> Result<bool> {
+    if event::poll(Duration::from_millis(250)).context("event poll failed")? {
+        if let Event::Key(key) = event::read().context("event read failed")? {
+            return Ok(KeyCode::Char('q') == key.code);
         }
     }
-
-    let messages: Vec<ListItem> = app
-        .messages
-        .iter()
-        .enumerate()
-        .map(|(i, m)| {
-            let content = Line::from(Span::raw(format!("{i}: {m}")));
-            ListItem::new(content)
-        })
-        .collect();
-    let messages =
-        List::new(messages).block(Block::default().borders(Borders::ALL).title("Messages"));
-    f.render_widget(messages, messages_area);
+    Ok(false)
 }
