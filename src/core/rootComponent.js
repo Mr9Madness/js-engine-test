@@ -4,14 +4,18 @@ import { onMounted, onUpdated } from 'vue'
 import { consola } from "consola";
 
 export const root = defineComponent({
-    props: ['root'],
     name: 'root',
+    props: ['root'],
     setup(props) {
         let needsUpdate = false
         let interval
 
         function renderRoot() {
             console.log('render')
+        }
+
+        function scheduleUpdate() {
+            needsUpdate = true
         }
 
         onMounted(() => {
@@ -26,10 +30,9 @@ export const root = defineComponent({
             renderRoot()
         })
 
-        function scheduleUpdate() {
-            needsUpdate = true
-        }
-        onUpdated(scheduleUpdate)
+        onUpdated(() => {
+            scheduleUpdate()
+        })
 
         return () => h('div', [
             h(props.root)

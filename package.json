@@ -5,10 +5,7 @@
   "scripts": {
     "start": "bun dist/main.js",
     "start:win": "node.exe main.js",
-    "build": "vite build && bun build:native",
-    "build:native": "bun build:linux && bun build:win",
-    "build:linux": "napi build --platform --target x86_64-unknown-linux-gnu dist/",
-    "build:win": "napi build --platform --target x86_64-pc-windows-msvc dist/"
+    "build": "vite build"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.0",
@@ -17,7 +14,8 @@
     "vite": "^5.2.8"
   },
   "dependencies": {
-    "vue": "^3.4.21",
-    "consola": "^3.2.3"
+    "bun": "^1.1.4",
+    "consola": "^3.2.3",
+    "vue": "^3.4.23"
   }
 }

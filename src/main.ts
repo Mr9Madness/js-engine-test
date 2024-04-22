@@ -1,12 +1,10 @@
-import { consola } from "consola/basic";
+import consola, { createConsola } from "consola/basic";
 import { createApp } from "./core/createApp";
 import App from "./app/App.vue";
 
-const b = require("./index");
+console.log(lib.symbols.add(1, 2));
 
 consola.wrapConsole()
-
-b.start()
 
 const a = createApp(App)
 
