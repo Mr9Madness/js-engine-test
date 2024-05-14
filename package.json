@@ -3,14 +3,16 @@
   "private": "true",
   "type": "module",
   "scripts": {
-    "start": "bun dist/main.js",
+    "start": "bun dist/main.mjs",
     "start:win": "node.exe main.js",
-    "build": "vite build"
+    "build": "bun build:js && bun build:native",
+    "build:js": "bunx mkdist --pattern=\"**/*.{js,ts,vue}\"",
+    "build:native": "zig build-lib src/root.zig -femit-bin=dist/libout.so -dynamic -OReleaseFast"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.0",
     "@types/node": "^20.12.7",
     "@vitejs/plugin-vue": "5.0.4",
+    "mkdist": "^1.4.0",
     "vite": "^5.2.8"
   },
   "dependencies": {

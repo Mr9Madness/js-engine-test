@@ -3,3 +3,7 @@ node_modules/
 build/
 dist/
 zig-cache/
+
+# Added by cargo
+
+/target

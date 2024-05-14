@@ -1,7 +1,9 @@
 import { dlopen, FFIType, suffix } from 'bun:ffi';
 
 const { i32 } = FFIType;
-const path = `libmain.${suffix}`;
+
+const path = `dist/libout.${suffix}`;
+console.log('tryin to load', path)
 
 export const lib = dlopen(path, {
     add: {
