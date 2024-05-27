@@ -5,9 +5,7 @@
   "scripts": {
     "start": "bun dist/main.mjs",
     "start:win": "node.exe main.js",
-    "build": "bun build:js && bun build:native",
-    "build:js": "bunx mkdist --pattern=\"**/*.{js,ts,vue}\"",
-    "build:native": "zig build-lib src/root.zig -femit-bin=dist/libout.so -dynamic -OReleaseFast"
+    "build": "vite build"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",

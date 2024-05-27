@@ -2,12 +2,10 @@ import { createRenderer, markRaw } from '@vue/runtime-core'
 import { root } from './rootComponent'
 import { BaseNode, DOMElement, TextNode, DOMNode } from "./dom";
 import { App } from 'vue';
-import { lib } from '../native';
 
 const { render, createApp: baseCreateApp } = createRenderer<BaseNode, DOMElement>({
     patchProp(el, key, prevValue, nextValue, namespace, prevChildren, parentComponent, parentSuspense, unmountChildren) {
         console.log('patchProp', key)
-        console.log(lib.symbols.add(1, 0));
         if (key === 'style') {
             nextValue = nextValue || {}
             // ensure any previously existing value is erased with undefined
@@ -27,7 +25,6 @@ const { render, createApp: baseCreateApp } = createRenderer<BaseNode, DOMElement
     },
     insert(el: DOMNode, parent: DOMElement, anchor: DOMNode) {
         console.log('insert', el.nodeName, parent.nodeName)
-        console.log(lib.symbols.add(1, 1));
 
         parent.insert(el, anchor)
     },

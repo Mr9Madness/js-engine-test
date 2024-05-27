@@ -1,4 +1,4 @@
-import consola, { createConsola } from "consola/basic";
+import consola from "consola/basic";
 import { createApp } from "./core/createApp";
 import App from "./app/App.vue";
 

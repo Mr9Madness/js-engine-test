@@ -1,0 +1,5 @@
+[app]
+name = "js-engine-test"
+stylized-name = "Js Engine Test"
+identifier = "example.com"
+template-pack = "winit"

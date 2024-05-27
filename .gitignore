@@ -1,9 +1,13 @@
-target/
+# Js
 node_modules/
-build/
-dist/
-zig-cache/
 
-# Added by cargo
+# Rust
+target/
+**/*.rs.bk
 
-/target
+# cargo-mobile2
+.cargo/
+/gen
+
+# macOS
+.DS_Store

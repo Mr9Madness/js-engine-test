@@ -1,7 +1,25 @@
 [package]
 name = "js-engine-test"
 version = "0.1.0"
-edition = "2021"
+authors = ["Watashi <watashi@example.com>"]
+edition = "2018"
+
+[lib]
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "js-engine-test-desktop"
+path = "gen/bin/desktop.rs"
 
 [dependencies]
-mozjs = "0.10.1"
+mobile-entry-point = "0.1.0"
+rusty_jsc = "0.1.0"
+winit = "0.23.0"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.9.0"
+log = "0.4.11"
+ndk-glue = "0.2.1"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+simple_logger = "1.11.0"
