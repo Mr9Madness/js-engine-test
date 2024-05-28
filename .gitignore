@@ -1,5 +1,6 @@
 # Js
 node_modules/
+dist/
 
 # Rust
 target/

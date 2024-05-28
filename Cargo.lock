@@ -436,6 +436,7 @@ dependencies = [
  "mobile-entry-point",
  "ndk-glue",
  "rusty_jsc",
+ "rusty_jsc_macros",
  "simple_logger",
  "winit",
 ]

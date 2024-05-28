@@ -16,13 +16,13 @@ export const root = defineComponent((props) => {
     }
 
     onMounted(() => {
-        // interval = setInterval(() => {
-        //     if (needsUpdate) {
-        //         consola.log('needs update')
-        //         renderRoot()
-        //         needsUpdate = false
-        //     }
-        // }, 32)
+        interval = setInterval(() => {
+            if (needsUpdate) {
+                consola.log('needs update')
+                renderRoot()
+                needsUpdate = false
+            }
+        }, 32)
 
         renderRoot()
     })

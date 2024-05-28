@@ -14,6 +14,7 @@ path = "gen/bin/desktop.rs"
 [dependencies]
 mobile-entry-point = "0.1.0"
 rusty_jsc = "0.1.0"
+rusty_jsc_macros = "0.1.0"
 winit = "0.23.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
