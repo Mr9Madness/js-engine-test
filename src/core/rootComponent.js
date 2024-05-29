@@ -1,7 +1,6 @@
 
 import { defineComponent, h } from '@vue/runtime-core'
 import { onMounted, onUpdated } from 'vue'
-import { consola } from "consola";
 
 export const root = defineComponent((props) => {
     let needsUpdate = false
@@ -18,7 +17,7 @@ export const root = defineComponent((props) => {
     onMounted(() => {
         interval = setInterval(() => {
             if (needsUpdate) {
-                consola.log('needs update')
+                console.log('needs update')
                 renderRoot()
                 needsUpdate = false
             }
