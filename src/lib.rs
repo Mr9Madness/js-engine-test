@@ -1,14 +1,35 @@
-use std::{fs};
+use std::{fs, thread, time};
 
 use mobile_entry_point::mobile_entry_point;
-use tokio::time::{self, Duration};
 use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    application::ApplicationHandler, 
+    event::{ElementState, KeyEvent, StartCause, WindowEvent}, 
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop}, 
+    keyboard::{Key, NamedKey}, 
+    window::{Window, WindowId},
 };
 use rusty_jsc::{JSContext, JSObject, JSValue};
 use rusty_jsc_macros::callback;
+
+const WAIT_TIME: time::Duration = time::Duration::from_millis(100);
+const POLL_SLEEP_TIME: time::Duration = time::Duration::from_millis(100);
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    #[default]
+    Wait,
+    WaitUntil,
+    Poll,
+}
+
+#[derive(Default)]
+struct ControlFlowDemo {
+    mode: Mode,
+    request_redraw: bool,
+    wait_cancelled: bool,
+    close_requested: bool,
+    window: Option<Window>,
+}
 
 #[cfg(target_os = "android")]
 fn init_logging() {
@@ -38,41 +59,24 @@ fn set_timeout(ctx: JSContext, _function: JSObject,_this: JSObject, args: &[JSVa
 
 #[callback]
 fn console(ctx: JSContext, _function: JSObject,_this: JSObject, args: &[JSValue]) {
-    let prin = args[0].to_string(&ctx).unwrap().to_string();
-    println!("> js {}", prin);
+    args[0].to_string(&ctx)
+        .inspect(|x| println!("> js log {}", x.to_string()))
+        .inspect_err(|e| println!("> js err {}", e.to_string(&ctx).unwrap())).unwrap().to_string();
 
     Ok(JSValue::undefined(&ctx))
 }
 
 #[callback]
-async fn set_interval(ctx: JSContext, _function: JSObject,_this: JSObject, args: &[JSValue]) {
-    println!("> rs set_interval");
+fn render_app(ctx: JSContext, _function: JSObject, _this: JSObject, args: &[JSValue]) {
+    println!("> rs render_app");
 
-    let callback_function = args[0].to_object(&ctx).unwrap();
-    let time = args[1].to_number(&ctx).unwrap() as u64;
-
-    tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_millis(time));
-        
-        loop {
-            let a = callback_function.call(&ctx, None, &[]).unwrap();
-            interval.tick().await;
-        }
-    });
     Ok(JSValue::undefined(&ctx))
 }
 
 #[mobile_entry_point]
-#[tokio::main]
-async fn main() {
+fn main() {
     // init_logging();
-    let event_loop = EventLoop::new();
-
-    let window = WindowBuilder::new()
-        .with_title("Vue app")
-        .with_inner_size(winit::dpi::LogicalSize::new(512.0, 512.0))
-        .build(&event_loop)
-        .unwrap();
+    let event_loop = EventLoop::new().unwrap();
 
     let global_source = "const process = { env: { NODE_ENV: 'production' }}";
     let app_source = fs::read_to_string("./dist/main.js").expect("Cannot read file");
@@ -82,34 +86,115 @@ async fn main() {
 
     let clear_value = JSValue::callback(&context, Some(clear_timeout));
     let set_value = JSValue::callback(&context, Some(set_timeout));
-    let internal_value = JSValue::callback(&context, Some(set_interval));
+    let renderfn_value = JSValue::callback(&context, Some(render_app));
     let log_value = JSValue::callback(&context, Some(console));
+    let error_value = JSValue::callback(&context, Some(console));
     
     let console = JSObject::new(&context);
     console.set_property(&context, "log", log_value).unwrap();
+    console.set_property(&context, "error", error_value).unwrap();
 
     global.set_property(&context, "console", console.to_jsvalue()).unwrap();
     global.set_property(&context, "clearTimeout", clear_value).unwrap();
     global.set_property(&context, "setTimeout", set_value).unwrap();
-    global.set_property(&context, "setInterval", internal_value).unwrap();
+    global.set_property(&context, "renderApp", renderfn_value).unwrap();
 
     context.evaluate_script(&global_source, 1).expect("Cannot inject global code");
 
     let _ = context.evaluate_script(&app_source, 1)
         .inspect_err(|e| println!("> js Uncaught: {}", e.to_string(&context).unwrap()));
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+    let mut app = ControlFlowDemo::default();
+    _ = event_loop.run_app(&mut app)
+        .inspect_err(|f| println!("> rs err: {}", f.to_string()))
+}
+
+impl ApplicationHandler for ControlFlowDemo {
+    fn new_events(&mut self, _event_loop: &ActiveEventLoop, cause: StartCause) {
+        // println!("new_events: {cause:?}");
+
+        self.wait_cancelled = match cause {
+            StartCause::WaitCancelled { .. } => self.mode == Mode::WaitUntil,
+            _ => false,
+        }
+    }
+
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let window_attributes = Window::default_attributes().with_title(
+            "Press 1, 2, 3 to change control flow mode. Press R to toggle redraw requests.",
+        );
+        self.window = Some(event_loop.create_window(window_attributes).unwrap());
+    }
+
+    fn window_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _window_id: WindowId,
+        event: WindowEvent,
+    ) {
+        // println!("{event:?}");
 
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
-            Event::MainEventsCleared => {
-                window.request_redraw();
-            }
+            WindowEvent::CloseRequested => {
+                self.close_requested = true;
+            },
+            WindowEvent::KeyboardInput {
+                event: KeyEvent { logical_key: key, state: ElementState::Pressed, .. },
+                ..
+            } => match key.as_ref() {
+                // WARNING: Consider using `key_without_modifiers()` if available on your platform.
+                // See the `key_binding` example
+                Key::Character("1") => {
+                    self.mode = Mode::Wait;
+                    println!("mode: {:?}", self.mode);
+                },
+                Key::Character("2") => {
+                    self.mode = Mode::WaitUntil;
+                    println!("mode: {:?}", self.mode);
+                },
+                Key::Character("3") => {
+                    self.mode = Mode::Poll;
+                    println!("mode: {:?}", self.mode);
+                },
+                Key::Character("r") => {
+                    self.request_redraw = !self.request_redraw;
+                    println!("request_redraw: {}", self.request_redraw);
+                },
+                Key::Named(NamedKey::Escape) => {
+                    self.close_requested = true;
+                },
+                _ => (),
+            },
+            WindowEvent::RedrawRequested => {
+                let window = self.window.as_ref().unwrap();
+                window.pre_present_notify();
+                // fill::fill_window(window);
+            },
             _ => (),
         }
-    });
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        if self.request_redraw && !self.wait_cancelled && !self.close_requested {
+            self.window.as_ref().unwrap().request_redraw();
+        }
+
+        match self.mode {
+            Mode::Wait => event_loop.set_control_flow(ControlFlow::Wait),
+            Mode::WaitUntil => {
+                if !self.wait_cancelled {
+                    event_loop
+                        .set_control_flow(ControlFlow::WaitUntil(time::Instant::now() + WAIT_TIME));
+                }
+            },
+            Mode::Poll => {
+                thread::sleep(POLL_SLEEP_TIME);
+                event_loop.set_control_flow(ControlFlow::Poll);
+            },
+        };
+
+        if self.close_requested {
+            event_loop.exit();
+        }
+    }
 }

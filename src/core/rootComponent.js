@@ -6,28 +6,12 @@ export const root = defineComponent((props) => {
     let needsUpdate = false
     let interval
 
-    function renderRoot() {
-        console.log('render')
-    }
-
-    function scheduleUpdate() {
-        needsUpdate = true
-    }
-
     onMounted(() => {
-        interval = setInterval(() => {
-            if (needsUpdate) {
-                console.log('needs update')
-                renderRoot()
-                needsUpdate = false
-            }
-        }, 32)
-
-        renderRoot()
+        renderApp()
     })
 
     onUpdated(() => {
-        scheduleUpdate()
+        renderApp()
     })
 
     return () => h('div', [

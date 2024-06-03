@@ -16,8 +16,7 @@ mobile-entry-point = "0.1.0"
 rusty_jsc = "0.1.0"
 rusty_jsc_macros = "0.1.0"
 rusty_jsc_sys = "0.1.0"
-tokio = { version = "1.37.0", features = ["time", "macros", "rt", "rt-multi-thread"] }
-winit = "0.23.0"
+winit = "0.30.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 android_logger = "0.9.0"
