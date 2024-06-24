@@ -1,21 +1,10 @@
 const std = @import("std");
 
-// Although this function looks imperative, note that its job is to
-// declaratively construct a build graph that will be executed by an external
-// runner.
 pub fn build(b: *std.Build) void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
-
-    // Standard optimization options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
-    // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const jsc = b.dependency("zig_jsc", .{});
+    const jsc = b.dependency("zig-jsc", .{});
     const jsc_lib = jsc.artifact("zig-jsc");
     const jsc_mod = jsc.module("zig-jsc");
 
@@ -53,6 +42,9 @@ pub fn build(b: *std.Build) void {
     // such a dependency.
     const run_cmd = b.addRunArtifact(exe);
 
+    const genjs = b.addSystemCommand(&.{ "bun", "run", "build" });
+    genjs.setCwd(b.path("."));
+
     // By making the run step depend on the install step, it will be run from the
     // installation directory rather than directly from within the cache directory.
     // This is not necessary, however, if the application depends on other installed
@@ -70,6 +62,7 @@ pub fn build(b: *std.Build) void {
     // This will evaluate the `run` step rather than the default, which is "install".
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+    run_step.dependOn(&genjs.step);
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.

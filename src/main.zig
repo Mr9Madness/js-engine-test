@@ -3,38 +3,80 @@ const jsc = @import("zig-jsc");
 
 const fsdir = std.fs.cwd();
 
-pub fn main() !void {
-    const global_source = "const process = { env: { NODE_ENV: 'production' }}";
-    const app_source = @embedFile("../dist/main.js");
+fn console_log(
+    ctx: jsc.JSContextRef,
+    function: jsc.JSObjectRef,
+    this: jsc.JSObjectRef,
+    argument_count: usize,
+    args: [*c]const jsc.JSValueRef,
+    except: [*c]jsc.JSValueRef,
+) callconv(.C) jsc.JSValueRef {
+    _ = except; // autofix
+    _ = argument_count; // autofix
+    _ = this; // autofix
+    _ = function; // autofix
+    const a = jsc.valueToString(ctx, args[0]) catch |err| {
+        std.debug.print("> js err {}", .{err});
+    };
 
-    const context = jsc.createContext();
-    const global = context.get_global_object();
-
-    const clear_value = JSValue::callback(&context, Some(clear_timeout));
-    const set_value = JSValue::callback(&context, Some(set_timeout));
-    const renderfn_value = JSValue::callback(&context, Some(render_app));
-    const log_value = JSValue::callback(&context, Some(console));
-    const error_value = JSValue::callback(&context, Some(console));
-    
-    const console = JSObject::new(&context);
-    console.set_property(&context, "log", log_value).unwrap();
-    console.set_property(&context, "error", error_value).unwrap();
-
-    global.set_property(&context, "console", console.to_jsvalue()).unwrap();
-    global.set_property(&context, "clearTimeout", clear_value).unwrap();
-    global.set_property(&context, "setTimeout", set_value).unwrap();
-    global.set_property(&context, "renderApp", renderfn_value).unwrap();
-
-    context.evaluate_script(&global_source, 1).expect("Cannot inject global code");
-
-    let _ = context.evaluate_script(&app_source, 1)
-        .inspect_err(|e| println!("> js Uncaught: {}", e.to_string(&context).unwrap()));
-
+    std.debug.print("> js log {}", .{a});
+    return jsc.createUndefined(ctx);
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+fn render_app(
+    ctx: jsc.JSContextRef,
+    function: jsc.JSObjectRef,
+    this: jsc.JSObjectRef,
+    argument_count: usize,
+    args: [*c]const jsc.JSValueRef,
+    except: [*c]jsc.JSValueRef,
+) callconv(.C) jsc.JSValueRef {
+    _ = args; // autofix
+    _ = except; // autofix
+    _ = argument_count; // autofix
+    _ = this; // autofix
+    _ = function; // autofix
+    std.debug.print("> rs render_app", .{});
+    return jsc.createUndefined(ctx);
+}
+
+pub fn main() !void {
+    const global_source = jsc.createString("const process = { env: { NODE_ENV: 'production' }}");
+
+    const app_name = "../dist/main.js";
+    const app = try fsdir.openFile(app_name, .{});
+    defer app.close();
+
+    const file_size = try app.getEndPos();
+
+    const allocator = std.heap.page_allocator;
+    const buffer: [*c]u8 = @alignCast(try fsdir.readFileAlloc(allocator, app_name, std.math.maxInt(usize)));
+    defer allocator.free(buffer);
+
+    const app_source = jsc.createString("");
+    _ = jsc.createStringWithBuffer(app_source, buffer, file_size);
+
+    const context = jsc.createContext();
+    const global = jsc.getGlobalObject(context);
+
+    const renderfn_value = jsc.createFunction(context, jsc.createString("render"), render_app);
+    const log_value = jsc.createFunction(context, jsc.createString("log"), console_log);
+    const error_value = jsc.createFunction(context, jsc.createString("error"), console_log);
+
+    const console = jsc.createObject(context);
+    jsc.setProperty(context, console, jsc.createString("log"), log_value);
+    jsc.setProperty(context, console, jsc.createString("error"), error_value);
+
+    jsc.setProperty(context, global, jsc.createString("console"), console);
+    jsc.setProperty(context, global, jsc.createString("renderApp"), renderfn_value);
+
+    jsc.evaluateScript(context, global_source) catch |err| {
+        _ = err; // autofix
+        std.debug.print("Cannot inject global code", .{});
+    };
+
+    jsc.evaluateScript(context, app_source) catch |err| {
+        _ = err; // autofix
+        std.debug.print("> js Uncaught: {}", .{});
+    };
 }
