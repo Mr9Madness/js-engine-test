@@ -15,9 +15,11 @@ fn console_log(
     _ = argument_count; // autofix
     _ = this; // autofix
     _ = function; // autofix
-    const a = jsc.valueToString(ctx, args[0]) catch |err| {
-        std.debug.print("> js err {}", .{err});
-    };
+    const a = jsc.valueToString(ctx, args[0])
+    // catch |err| {
+    //     std.debug.print("> js err {}", .{err});
+    // }
+    ;
 
     std.debug.print("> js log {}", .{a});
     return jsc.createUndefined(ctx);
@@ -70,13 +72,17 @@ pub fn main() !void {
     jsc.setProperty(context, global, jsc.createString("console"), console);
     jsc.setProperty(context, global, jsc.createString("renderApp"), renderfn_value);
 
-    jsc.evaluateScript(context, global_source) catch |err| {
-        _ = err; // autofix
-        std.debug.print("Cannot inject global code", .{});
-    };
+    _ = jsc.evaluateScript(context, global_source)
+    // catch |err| {
+    //     _ = err; // autofix
+    //     std.debug.print("Cannot inject global code", .{});
+    // }
+    ;
 
-    jsc.evaluateScript(context, app_source) catch |err| {
-        _ = err; // autofix
-        std.debug.print("> js Uncaught: {}", .{});
-    };
+    _ = jsc.evaluateScript(context, app_source)
+    // catch |err| {
+    //     _ = err; // autofix
+    //     std.debug.print("> js Uncaught: {}", .{});
+    // }
+    ;
 }

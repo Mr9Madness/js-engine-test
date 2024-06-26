@@ -24,9 +24,8 @@
     // internet connectivity.
     .dependencies = .{
         .@"zig-jsc" = .{
-            .path = "../../../zig/projects/zig-jsc",
-            // .url = "https://github.com/cmsommer/zig-jsc/archive/refs/heads/main.tar.gz",
-            // .hash = "122056bde00c943e165ccbda94a65b91f4a427fa9cfbea8bb42632284f9a24d4e2de",
+            .url = "https://github.com/cmsommer/zig-jsc/archive/refs/heads/wip.tar.gz",
+            .hash = "122039e97ee30742b0aa3262289dfdfa6e0cced469af63e3e5a1fd5a5c95ac2e5f79",
         },
     },
     .paths = .{
